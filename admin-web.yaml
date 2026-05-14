@@ -17,7 +17,7 @@ module: "role"
 
 menus:
   - key: list                              # 菜单 key（前端路由/spec.views[].key 都用它）
-    title: 数据列表                          # 菜单标题
+    title: 角色列表                          # 菜单标题
     icon: cube                             # 图标 hint，前端目前不强校验
     roles: [admin, operator]               # 哪些角色能看到这个菜单（空数组=所有人）
     key_fields: [id, name, status, created_at]  # 告诉 AI "列表里优先展示这些字段"
