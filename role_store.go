@@ -30,8 +30,8 @@ func (p *RolePlugin) createRole(ctx context.Context, name, parentID, description
 		err := p.db.QueryRowContext(ctx, `
 			INSERT INTO role_roles (name, parent_id, description, status)
 			VALUES ($1, $2, $3, $4)
-			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at`,
-			name, parent, description, status).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
+			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, system, created_at, updated_at`,
+			name, parent, description, status).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.System, &role.CreatedAt, &role.UpdatedAt)
 		return role, err
 	}
 	p.ensureMemoryStore()
@@ -54,8 +54,8 @@ func (p *RolePlugin) updateRole(ctx context.Context, role roleRecord) (roleRecor
 			UPDATE role_roles
 			SET name=$1, parent_id=$2, description=$3, status=$4, updated_at=now()
 			WHERE id=$5
-			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at`,
-			role.Name, parent, role.Description, role.Status, role.ID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
+			RETURNING id::text, name, COALESCE(parent_id::text, ''), description, status, system, created_at, updated_at`,
+			role.Name, parent, role.Description, role.Status, role.ID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.System, &role.CreatedAt, &role.UpdatedAt)
 		return role, err
 	}
 	p.ensureMemoryStore()
@@ -69,8 +69,8 @@ func (p *RolePlugin) getRole(ctx context.Context, roleID string) (roleRecord, bo
 	if p.db != nil {
 		var role roleRecord
 		err := p.db.QueryRowContext(ctx, `
-			SELECT id::text, name, COALESCE(parent_id::text, ''), description, status, created_at, updated_at
-			FROM role_roles WHERE id=$1`, roleID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.CreatedAt, &role.UpdatedAt)
+			SELECT id::text, name, COALESCE(parent_id::text, ''), description, status, system, created_at, updated_at
+			FROM role_roles WHERE id=$1`, roleID).Scan(&role.ID, &role.Name, &role.ParentID, &role.Description, &role.Status, &role.System, &role.CreatedAt, &role.UpdatedAt)
 		if errors.Is(err, sql.ErrNoRows) {
 			return roleRecord{}, false, nil
 		}
@@ -144,11 +144,11 @@ func (p *RolePlugin) listRoles(ctx context.Context, f roleListFilter) ([]roleRes
 		}
 		args = append(args, f.PageSize, (f.Page-1)*f.PageSize)
 		rows, err := p.db.QueryContext(ctx, `
-			SELECT r.id::text, r.name, COALESCE(r.parent_id::text, ''), COALESCE(p.name, ''), r.status, r.description, r.created_at
+			SELECT r.id::text, r.name, COALESCE(r.parent_id::text, ''), COALESCE(p.name, ''), r.status, r.system, r.description, r.created_at
 			FROM role_roles r
 			LEFT JOIN role_roles p ON p.id = r.parent_id
 			WHERE `+whereSQL+`
-			ORDER BY r.created_at DESC, r.id
+			ORDER BY r.system DESC, r.created_at DESC, r.id
 			LIMIT $`+strconv.Itoa(len(args)-1)+` OFFSET $`+strconv.Itoa(len(args)), args...)
 		if err != nil {
 			return nil, 0, err
@@ -158,7 +158,7 @@ func (p *RolePlugin) listRoles(ctx context.Context, f roleListFilter) ([]roleRes
 		for rows.Next() {
 			var role roleRecord
 			var parentName string
-			if err := rows.Scan(&role.ID, &role.Name, &role.ParentID, &parentName, &role.Status, &role.Description, &role.CreatedAt); err != nil {
+			if err := rows.Scan(&role.ID, &role.Name, &role.ParentID, &parentName, &role.Status, &role.System, &role.Description, &role.CreatedAt); err != nil {
 				return nil, 0, err
 			}
 			items = append(items, roleToResponse(role, parentName))

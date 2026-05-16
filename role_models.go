@@ -11,6 +11,7 @@ type roleRecord struct {
 	ParentID    string    `json:"parent_id,omitempty"`
 	Description string    `json:"description,omitempty"`
 	Status      string    `json:"status"`
+	System      bool      `json:"system"` // system=true 的角色由模块 Init 自动 seed，业务侧不允许修改/禁用
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -30,6 +31,7 @@ type roleResponse struct {
 	ParentID    *string              `json:"parent_id"`
 	ParentName  string               `json:"parent_name"`
 	Status      string               `json:"status"`
+	System      bool                 `json:"system"`
 	Description string               `json:"description"`
 	CreatedAt   string               `json:"created_at,omitempty"`
 	UpdatedAt   string               `json:"updated_at,omitempty"`
@@ -50,6 +52,12 @@ const (
 	supportRoleID    = "00000000-0000-0000-0000-000000000003"
 	unassignedPermID = "00000000-0000-0000-0000-000000000004"
 	disabledRoleID   = "00000000-0000-0000-0000-000000000005"
+
+	// system 角色：模块 Init 时 seed，业务侧不允许修改/禁用
+	// ID 选用 0...10/11/12 形式便于人眼识别
+	superAdminRoleID = "00000000-0000-0000-0000-000000000010"
+	developerRoleID  = "00000000-0000-0000-0000-000000000011"
+	operatorRoleID   = "00000000-0000-0000-0000-000000000012"
 )
 
 var (

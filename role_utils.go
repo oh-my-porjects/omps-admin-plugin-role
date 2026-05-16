@@ -17,6 +17,7 @@ func roleToResponse(role roleRecord, parentName string) roleResponse {
 		Name:        role.Name,
 		ParentName:  parentName,
 		Status:      role.Status,
+		System:      role.System,
 		Description: role.Description,
 		CreatedAt:   formatTime(role.CreatedAt),
 		UpdatedAt:   formatTime(role.UpdatedAt),

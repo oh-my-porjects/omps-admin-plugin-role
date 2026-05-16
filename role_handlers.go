@@ -131,6 +131,11 @@ func (p *RolePlugin) handleRoleUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 2132, nil, "角色不存在")
 		return
 	}
+	// 系统预设角色不允许修改（包括改名/改状态/改父角色）
+	if role.System {
+		writeJSON(w, 2139, nil, "系统预设角色不允许修改")
+		return
+	}
 	if !validName(req.Name) || !validStatus(req.Status) || runeLen(req.Description) > 200 {
 		writeJSON(w, 2133, nil, "角色名称或状态参数不合法")
 		return
