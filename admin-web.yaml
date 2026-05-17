@@ -17,12 +17,18 @@ views:
     title: 角色
     api: GET /api/role/list
     columns:
-      - field: id
+      - field: role_id
         title: ID
       - field: name
         title: 角色名
-      - field: parent_id
+      - field: parent_name
         title: 父角色
+      - field: system
+        title: 来源
+        render: enum
+        enum:
+          "true": 系统预设
+          "false": 用户创建
       - field: description
         title: 说明
       - field: status
@@ -42,18 +48,17 @@ views:
       - key: edit
         type: row
         title: 编辑
-        api: PUT /api/role/{id}
-      - key: delete
+        api: PUT /api/role/update
+      - key: assign_permissions
         type: row
-        title: 删除
-        api: DELETE /api/role/{id}
-        danger: true
+        title: 分配权限
+        api: PUT /api/role/assign-permissions
   - key: permission_list
     type: table
     title: 权限点
-    api: GET /api/role/permissions
+    api: GET /api/role/permission-list
     columns:
-      - field: id
+      - field: permission_id
         title: ID
       - field: code
         title: 权限码
@@ -61,6 +66,14 @@ views:
         title: 名称
       - field: description
         title: 说明
+      - field: created_at
+        title: 创建时间
+        render: datetime
+    actions:
+      - key: create
+        type: page
+        title: 新建权限点
+        api: POST /api/role/permission-create
 roles:
   - code: admin
     title: 超级管理员
