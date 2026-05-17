@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -53,8 +52,16 @@ func validStatus(s string) bool {
 	return s == "enabled" || s == "disabled"
 }
 
+// validShortID 校验 12 字符 base62 ID 格式
+// 替代旧的 validUUID；函数名保留 validUUID 别名给历史调用方
+func validShortID(s string) bool {
+	return shortIDRE.MatchString(s)
+}
+
+// validUUID 保留作为 validShortID 别名（外部调用兼容）
+// 新代码用 validShortID
 func validUUID(s string) bool {
-	return uuidRE.MatchString(s)
+	return validShortID(s)
 }
 
 func validPermissionCode(s string) bool {
@@ -96,10 +103,26 @@ func decodeJSON(r *http.Request, dst any) error {
 	return json.NewDecoder(r.Body).Decode(dst)
 }
 
-func newUUIDLikeID() string {
+// newShortID 内存兜底场景（db 为 nil 单元测试）的 ID 生成
+// 12 字符 base62，用 unix nano 做来源（单元测试足够），不用 crypto rand 避免依赖
+// 生产路径 (db != nil) 由 PG generate_short_id() 函数兜底，不走这里
+func newShortID() string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	n := time.Now().UnixNano()
-	return fmt.Sprintf("00000000-0000-4000-8000-%012x", n&0xffffffffffff)
+	out := make([]byte, 12)
+	for i := 0; i < 12; i++ {
+		out[i] = chars[n%62]
+		n /= 62
+		if n == 0 {
+			// 后续位用线程不安全但单测够用的 fallback
+			n = time.Now().UnixNano() + int64(i)
+		}
+	}
+	return string(out)
 }
+
+// newUUIDLikeID 保留旧名给兼容（实际生成短 ID）
+func newUUIDLikeID() string { return newShortID() }
 
 func sortedKeys(m map[string]bool) []string {
 	keys := make([]string, 0, len(m))

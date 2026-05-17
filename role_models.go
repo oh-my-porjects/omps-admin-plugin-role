@@ -46,21 +46,33 @@ type permissionResponse struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
+// 平台短 ID 标准：12 字符 base62 ([A-Za-z0-9])，由 runtime migration11 注入的
+// generate_short_id() PG 函数生成。详见 admin-server/prompts/_shared_constraints.md §6
+//
+// 系统预设 ID 命名约定：开头 8 个 0 + 4 字符语义后缀（撞库概率 ~10^-15）
+//   - "00000000Root" Root 根角色（兼容旧 ID rootRoleID 语义）
+//   - "00000000Supp" Support 子角色（演示父-子角色继承）
+//   - "00000000Disb" Disabled 演示禁用角色
+//   - "00000000SAdm" 超级管理员（system=true 不可改名）
+//   - "00000000Devp" 开发者（system=true）
+//   - "00000000Optr" 运营（system=true）
+//   - "00000000SysP" rootPermID system.manage 根权限
+//   - "00000000UsrR" unassignedPermID users.read 故意不绑给 root
 const (
-	rootRoleID       = "00000000-0000-0000-0000-000000000001"
-	rootPermID       = "00000000-0000-0000-0000-000000000002"
-	supportRoleID    = "00000000-0000-0000-0000-000000000003"
-	unassignedPermID = "00000000-0000-0000-0000-000000000004"
-	disabledRoleID   = "00000000-0000-0000-0000-000000000005"
+	rootRoleID       = "00000000Root"
+	rootPermID       = "00000000SysP"
+	supportRoleID    = "00000000Supp"
+	unassignedPermID = "00000000UsrR"
+	disabledRoleID   = "00000000Disb"
 
-	// system 角色：模块 Init 时 seed，业务侧不允许修改/禁用
-	// ID 选用 0...10/11/12 形式便于人眼识别
-	superAdminRoleID = "00000000-0000-0000-0000-000000000010"
-	developerRoleID  = "00000000-0000-0000-0000-000000000011"
-	operatorRoleID   = "00000000-0000-0000-0000-000000000012"
+	// system 角色（system=true 不可改名/禁用）
+	superAdminRoleID = "00000000SAdm"
+	developerRoleID  = "00000000Devp"
+	operatorRoleID   = "00000000Optr"
 )
 
 var (
-	uuidRE           = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	// 12 字符 base62 短 ID 格式校验
+	shortIDRE        = regexp.MustCompile(`^[A-Za-z0-9]{12}$`)
 	permissionCodeRE = regexp.MustCompile(`^[a-z0-9._-]{3,80}$`)
 )

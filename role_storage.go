@@ -12,10 +12,13 @@ func (p *RolePlugin) initStorage(ctx context.Context) error {
 	}
 	stmts := []string{
 		`CREATE EXTENSION IF NOT EXISTS pgcrypto`,
+		// 平台短 ID 标准：12 字符 base62
+		// generate_short_id() 函数由 runtime migration11 注入，这里直接使用
+		// （如果 runtime 是老版没注入，CREATE TABLE 报错；新部署不存在此问题）
 		`CREATE TABLE IF NOT EXISTS role_roles (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
 			name TEXT NOT NULL,
-			parent_id UUID,
+			parent_id TEXT,
 			description TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'enabled',
 			system BOOLEAN NOT NULL DEFAULT false,
@@ -24,10 +27,8 @@ func (p *RolePlugin) initStorage(ctx context.Context) error {
 			CONSTRAINT role_roles_parent_fk FOREIGN KEY (parent_id) REFERENCES role_roles(id),
 			CONSTRAINT role_roles_no_self_parent CHECK (parent_id IS NULL OR parent_id <> id)
 		)`,
-		// 兼容老库：早期没有 system 字段
-		`ALTER TABLE role_roles ADD COLUMN IF NOT EXISTS system BOOLEAN NOT NULL DEFAULT false`,
 		`CREATE TABLE IF NOT EXISTS role_permissions (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
 			code TEXT NOT NULL UNIQUE,
 			name TEXT NOT NULL,
 			description TEXT NOT NULL DEFAULT '',
@@ -35,9 +36,9 @@ func (p *RolePlugin) initStorage(ctx context.Context) error {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
 		`CREATE TABLE IF NOT EXISTS role_role_permissions (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			role_id UUID NOT NULL,
-			permission_id UUID NOT NULL,
+			id TEXT PRIMARY KEY DEFAULT generate_short_id(),
+			role_id TEXT NOT NULL,
+			permission_id TEXT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			UNIQUE (role_id, permission_id),
 			CONSTRAINT role_role_permissions_role_fk FOREIGN KEY (role_id) REFERENCES role_roles(id) ON DELETE CASCADE,
