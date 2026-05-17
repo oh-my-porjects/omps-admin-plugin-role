@@ -60,38 +60,23 @@ func (p *RolePlugin) initStorage(ctx context.Context) error {
 		return err
 	}
 
-	// seed 系统预设角色 + 权限：ID 由 generate_short_id() 随机生成（每次部署/项目都不同）
-	// 业务代码用 name / code 字段查找系统角色，不依赖硬编码 ID 常量
-	// system=true 标记 + ON CONFLICT (name/code) 保证幂等
+	// seed 三个系统预设角色：超级管理员 / 开发者 / 运营
+	// ID 由 generate_short_id() 随机生成，业务代码用 name 字段查找
+	// system=true 标记不可改名/禁用，ON CONFLICT (name) 保证幂等
 	seedRoles := []struct {
-		name, status, desc string
-		system             bool
-		parentName         string // 空表示 NULL parent_id
+		name, desc string
 	}{
-		{"Root", "enabled", "system root role", true, ""},
-		{"Support", "enabled", "bootstrap child role", true, "Root"},
-		{"Disabled Role", "disabled", "bootstrap disabled role", true, ""},
-		{"超级管理员", "enabled", "系统预设角色，拥有最高权限", true, ""},
-		{"开发者", "enabled", "系统预设角色，开发人员使用", true, ""},
-		{"运营", "enabled", "系统预设角色，运营人员使用", true, ""},
+		{"超级管理员", "系统预设角色，拥有最高权限"},
+		{"开发者", "系统预设角色，开发人员使用"},
+		{"运营", "系统预设角色，运营人员使用"},
 	}
 	for _, sr := range seedRoles {
-		if sr.parentName == "" {
-			if _, err := p.db.ExecContext(ctx, `
-				INSERT INTO role_roles (name, status, description, system)
-				VALUES ($1, $2, $3, $4)
-				ON CONFLICT (name) DO UPDATE SET system = EXCLUDED.system`,
-				sr.name, sr.status, sr.desc, sr.system); err != nil {
-				return err
-			}
-		} else {
-			if _, err := p.db.ExecContext(ctx, `
-				INSERT INTO role_roles (name, parent_id, status, description, system)
-				VALUES ($1, (SELECT id FROM role_roles WHERE name=$2 LIMIT 1), $3, $4, $5)
-				ON CONFLICT (name) DO UPDATE SET system = EXCLUDED.system`,
-				sr.name, sr.parentName, sr.status, sr.desc, sr.system); err != nil {
-				return err
-			}
+		if _, err := p.db.ExecContext(ctx, `
+			INSERT INTO role_roles (name, status, description, system)
+			VALUES ($1, 'enabled', $2, true)
+			ON CONFLICT (name) DO UPDATE SET system = EXCLUDED.system`,
+			sr.name, sr.desc); err != nil {
+			return err
 		}
 	}
 
@@ -110,16 +95,13 @@ func (p *RolePlugin) initStorage(ctx context.Context) error {
 		}
 	}
 
-	// 角色权限绑定：Root / Support / Disabled Role / 超级管理员 → system.manage
-	// 通过 name / code 子查询拿到随机生成的 ID
-	for _, roleName := range []string{"Root", "Support", "Disabled Role", "超级管理员"} {
-		if _, err := p.db.ExecContext(ctx, `
-			INSERT INTO role_role_permissions (role_id, permission_id)
-			SELECT r.id, p.id FROM role_roles r, role_permissions p
-			WHERE r.name = $1 AND p.code = 'system.manage'
-			ON CONFLICT (role_id, permission_id) DO NOTHING`, roleName); err != nil {
-			return err
-		}
+	// 默认绑定：超级管理员拥有 system.manage 权限
+	if _, err := p.db.ExecContext(ctx, `
+		INSERT INTO role_role_permissions (role_id, permission_id)
+		SELECT r.id, p.id FROM role_roles r, role_permissions p
+		WHERE r.name = '超级管理员' AND p.code = 'system.manage'
+		ON CONFLICT (role_id, permission_id) DO NOTHING`); err != nil {
+		return err
 	}
 	return nil
 }
