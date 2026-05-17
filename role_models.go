@@ -49,26 +49,20 @@ type permissionResponse struct {
 // 平台短 ID 标准：12 字符 base62 ([A-Za-z0-9])，由 runtime migration11 注入的
 // generate_short_id() PG 函数生成。详见 admin-server/prompts/_shared_constraints.md §6
 //
-// 系统预设 ID 命名约定：开头 8 个 0 + 4 字符语义后缀（撞库概率 ~10^-15）
-//   - "00000000Root" Root 根角色（兼容旧 ID rootRoleID 语义）
-//   - "00000000Supp" Support 子角色（演示父-子角色继承）
-//   - "00000000Disb" Disabled 演示禁用角色
-//   - "00000000SAdm" 超级管理员（system=true 不可改名）
-//   - "00000000Devp" 开发者（system=true）
-//   - "00000000Optr" 运营（system=true）
-//   - "00000000SysP" rootPermID system.manage 根权限
-//   - "00000000UsrR" unassignedPermID users.read 故意不绑给 root
+// 系统预设 ID 命名约定：语义前缀 + 编号填充到 12 字符
+// 前 8 位每个都不一样（避免 UI 缩短显示时看起来重复）
+// 撞库概率 ~10^-15（generate_short_id 不可能产生这种带语义前缀串）
 const (
-	rootRoleID       = "00000000Root"
-	rootPermID       = "00000000SysP"
-	supportRoleID    = "00000000Supp"
-	unassignedPermID = "00000000UsrR"
-	disabledRoleID   = "00000000Disb"
+	rootRoleID       = "RoleRoot0001"
+	rootPermID       = "PermSysMan01"
+	supportRoleID    = "RoleSupp0001"
+	unassignedPermID = "PermUsrRead1"
+	disabledRoleID   = "RoleDisb0001"
 
 	// system 角色（system=true 不可改名/禁用）
-	superAdminRoleID = "00000000SAdm"
-	developerRoleID  = "00000000Devp"
-	operatorRoleID   = "00000000Optr"
+	superAdminRoleID = "RoleSuperAdm"
+	developerRoleID  = "RoleDevelope"
+	operatorRoleID   = "RoleOperator"
 )
 
 var (
