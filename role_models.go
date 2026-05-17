@@ -46,20 +46,20 @@ type permissionResponse struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
-// 平台短 ID 标准：12 字符 base62 ([A-Za-z0-9])，由 runtime migration11 注入的
-// generate_short_id() PG 函数生成。详见 admin-server/prompts/_shared_constraints.md §6
+// === 仅用于 db=nil 单元测试场景的内存兜底 ID ===
 //
-// 系统预设 ID 命名约定：完整语义名 + 数字填充到 12 字符
-// 每个 ID 前 8 位完全独立（UI 上 short_id 渲染器取前 8 位时一眼区分）
-// 撞库概率 ~10^-15（generate_short_id 不可能产生这种带语义前缀的串）
+// 生产路径：role_storage.go initStorage 用 ON CONFLICT (name/code) 通过业务字段
+// seed，ID 由 PG generate_short_id() 真随机生成（12 字符 base62）。
+//
+// 这些常量**不会**出现在生产 DB / UI 上。仅 ensureMemoryStore 路径（go test
+// 跑 plugin 时 p.db=nil 兜底）用作内存 map 的 key 占位。生产代码靠
+// `WHERE name='Root'` 或 `WHERE code='system.manage'` 查找系统角色 / 权限。
 const (
 	rootRoleID       = "Root00000001"
 	rootPermID       = "SysManage001"
 	supportRoleID    = "Support00001"
 	unassignedPermID = "UsersRead001"
 	disabledRoleID   = "Disabled0001"
-
-	// system 角色（system=true 不可改名/禁用）
 	superAdminRoleID = "SuperAdmin01"
 	developerRoleID  = "Developer001"
 	operatorRoleID   = "Operator0001"

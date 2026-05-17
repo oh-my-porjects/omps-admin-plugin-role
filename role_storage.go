@@ -50,78 +50,76 @@ func (p *RolePlugin) initStorage(ctx context.Context) error {
 			return err
 		}
 	}
+	// 加 name UNIQUE 索引让 ON CONFLICT (name) 可用（业务字段做 system 角色 seed 幂等）
 	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_roles (id, name, status, description)
-		VALUES ($1, 'Root', 'enabled', 'system root role')
-		ON CONFLICT (id) DO NOTHING`, rootRoleID); err != nil {
+		CREATE UNIQUE INDEX IF NOT EXISTS uniq_role_roles_name ON role_roles(name)`); err != nil {
 		return err
 	}
 	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_permissions (id, code, name, description)
-		VALUES ($1, 'system.manage', 'System Manage', 'root management permission')
-		ON CONFLICT (id) DO NOTHING`, rootPermID); err != nil {
-		return err
-	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_permissions (id, code, name, description)
-		VALUES ($1, 'users.read', 'View Users', 'permission intentionally not assigned to root')
-		ON CONFLICT (id) DO NOTHING`, unassignedPermID); err != nil {
-		return err
-	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_roles (id, name, parent_id, status, description)
-		VALUES ($1, 'Support', $2, 'enabled', 'bootstrap child role')
-		ON CONFLICT (id) DO NOTHING`, supportRoleID, rootRoleID); err != nil {
-		return err
-	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_roles (id, name, status, description)
-		VALUES ($1, 'Disabled Role', 'disabled', 'bootstrap disabled role')
-		ON CONFLICT (id) DO NOTHING`, disabledRoleID); err != nil {
-		return err
-	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
-		ON CONFLICT (role_id, permission_id) DO NOTHING`, rootRoleID, rootPermID); err != nil {
-		return err
-	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
-		ON CONFLICT (role_id, permission_id) DO NOTHING`, supportRoleID, rootPermID); err != nil {
-		return err
-	}
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
-		ON CONFLICT (role_id, permission_id) DO NOTHING`, disabledRoleID, rootPermID); err != nil {
+		CREATE UNIQUE INDEX IF NOT EXISTS uniq_role_permissions_code ON role_permissions(code)`); err != nil {
 		return err
 	}
 
-	// 系统角色 seed：超级管理员 / 开发者 / 运营，固定 ID + system=true
-	// 这三个角色不允许业务侧修改名称/状态，删除按钮在 UI 上隐藏
-	systemRoles := []struct {
-		id, name, desc string
+	// seed 系统预设角色 + 权限：ID 由 generate_short_id() 随机生成（每次部署/项目都不同）
+	// 业务代码用 name / code 字段查找系统角色，不依赖硬编码 ID 常量
+	// system=true 标记 + ON CONFLICT (name/code) 保证幂等
+	seedRoles := []struct {
+		name, status, desc string
+		system             bool
+		parentName         string // 空表示 NULL parent_id
 	}{
-		{superAdminRoleID, "超级管理员", "系统预设角色，拥有最高权限"},
-		{developerRoleID, "开发者", "系统预设角色，开发人员使用"},
-		{operatorRoleID, "运营", "系统预设角色，运营人员使用"},
+		{"Root", "enabled", "system root role", true, ""},
+		{"Support", "enabled", "bootstrap child role", true, "Root"},
+		{"Disabled Role", "disabled", "bootstrap disabled role", true, ""},
+		{"超级管理员", "enabled", "系统预设角色，拥有最高权限", true, ""},
+		{"开发者", "enabled", "系统预设角色，开发人员使用", true, ""},
+		{"运营", "enabled", "系统预设角色，运营人员使用", true, ""},
 	}
-	for _, sr := range systemRoles {
+	for _, sr := range seedRoles {
+		if sr.parentName == "" {
+			if _, err := p.db.ExecContext(ctx, `
+				INSERT INTO role_roles (name, status, description, system)
+				VALUES ($1, $2, $3, $4)
+				ON CONFLICT (name) DO UPDATE SET system = EXCLUDED.system`,
+				sr.name, sr.status, sr.desc, sr.system); err != nil {
+				return err
+			}
+		} else {
+			if _, err := p.db.ExecContext(ctx, `
+				INSERT INTO role_roles (name, parent_id, status, description, system)
+				VALUES ($1, (SELECT id FROM role_roles WHERE name=$2 LIMIT 1), $3, $4, $5)
+				ON CONFLICT (name) DO UPDATE SET system = EXCLUDED.system`,
+				sr.name, sr.parentName, sr.status, sr.desc, sr.system); err != nil {
+				return err
+			}
+		}
+	}
+
+	seedPerms := []struct {
+		code, name, desc string
+	}{
+		{"system.manage", "System Manage", "root management permission"},
+		{"users.read", "View Users", "permission intentionally not assigned to root"},
+	}
+	for _, sp := range seedPerms {
 		if _, err := p.db.ExecContext(ctx, `
-			INSERT INTO role_roles (id, name, status, description, system)
-			VALUES ($1, $2, 'enabled', $3, true)
-			ON CONFLICT (id) DO UPDATE SET system = true`, sr.id, sr.name, sr.desc); err != nil {
+			INSERT INTO role_permissions (code, name, description)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (code) DO NOTHING`, sp.code, sp.name, sp.desc); err != nil {
 			return err
 		}
 	}
-	// 给超级管理员授予 root 权限
-	if _, err := p.db.ExecContext(ctx, `
-		INSERT INTO role_role_permissions (role_id, permission_id)
-		VALUES ($1, $2)
-		ON CONFLICT (role_id, permission_id) DO NOTHING`, superAdminRoleID, rootPermID); err != nil {
-		return err
+
+	// 角色权限绑定：Root / Support / Disabled Role / 超级管理员 → system.manage
+	// 通过 name / code 子查询拿到随机生成的 ID
+	for _, roleName := range []string{"Root", "Support", "Disabled Role", "超级管理员"} {
+		if _, err := p.db.ExecContext(ctx, `
+			INSERT INTO role_role_permissions (role_id, permission_id)
+			SELECT r.id, p.id FROM role_roles r, role_permissions p
+			WHERE r.name = $1 AND p.code = 'system.manage'
+			ON CONFLICT (role_id, permission_id) DO NOTHING`, roleName); err != nil {
+			return err
+		}
 	}
 	return nil
 }
