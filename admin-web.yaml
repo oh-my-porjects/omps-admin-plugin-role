@@ -19,6 +19,7 @@ views:
     columns:
       - field: role_id
         title: ID
+        render: short_id
       - field: name
         title: 角色名
       - field: parent_name
@@ -60,6 +61,7 @@ views:
     columns:
       - field: permission_id
         title: ID
+        render: short_id
       - field: code
         title: 权限码
       - field: name
