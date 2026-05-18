@@ -105,6 +105,17 @@ views:
             type: json
             required: true
             placeholder: '["perm_id1", "perm_id2"]'
+      - key: delete
+        type: row
+        title: 删除
+        api: DELETE /api/role/delete
+        danger: true
+        confirm: 确认删除该角色,系统预设/含子角色/有账号绑定的角色无法删除
+        fields:
+          - field: role_id
+            title: 角色 ID
+            type: string
+            hidden: true
   - key: permission_list
     type: table
     title: 权限点

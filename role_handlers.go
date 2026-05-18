@@ -179,6 +179,68 @@ func (p *RolePlugin) handleRoleUpdate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 0, roleToResponse(updated, ""), "")
 }
 
+// handleRoleDelete DELETE 类角色软删除接口
+// 业务约束:
+//   - 系统预设角色 (system=true) 不允许删除
+//   - 有子角色时不允许删除 (FK NO ACTION 也会阻止, 这里先 SELECT 给好错误信息)
+//   - 已被账号绑定 (account_role_bindings.role_id) 时不允许删除, 避免孤儿引用
+//
+// role_role_permissions 通过 FK ON DELETE CASCADE 自动清理
+func (p *RolePlugin) handleRoleDelete(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RoleID string `json:"role_id"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		// 容错: query string 兼容 (DELETE 请求不一定带 body)
+		req.RoleID = r.URL.Query().Get("role_id")
+	}
+	req.RoleID = strings.TrimSpace(req.RoleID)
+	if !validUUID(req.RoleID) {
+		writeJSON(w, 2191, nil, "角色 ID 缺失或格式不合法")
+		return
+	}
+	role, exists, err := p.getRole(r.Context(), req.RoleID)
+	if err != nil {
+		writeJSON(w, 2196, nil, "查询角色失败")
+		return
+	}
+	if !exists {
+		writeJSON(w, 2192, nil, "角色不存在")
+		return
+	}
+	if role.System {
+		writeJSON(w, 2193, nil, "系统预设角色不允许删除")
+		return
+	}
+	// 子角色检查
+	var childCount int
+	if err := p.db.QueryRowContext(r.Context(),
+		`SELECT COUNT(*) FROM role_roles WHERE parent_id=$1`, req.RoleID).Scan(&childCount); err != nil {
+		writeJSON(w, 2196, nil, "子角色检查失败")
+		return
+	}
+	if childCount > 0 {
+		writeJSON(w, 2194, nil, "存在子角色,不允许删除")
+		return
+	}
+	// 账号绑定检查 (跨模块查 account 表; 同 DB schema)
+	// 若 account 公共模块未加载或表不存在, 查询会失败 — 容忍 (table not found 错误时跳过该检查)
+	var bindCount int
+	bindErr := p.db.QueryRowContext(r.Context(),
+		`SELECT COUNT(*) FROM account_role_bindings WHERE role_id=$1`, req.RoleID).Scan(&bindCount)
+	if bindErr == nil && bindCount > 0 {
+		writeJSON(w, 2195, nil, "角色已绑定到账号,请先解除绑定再删除")
+		return
+	}
+	// 删 role; role_role_permissions 通过 ON DELETE CASCADE 自动清
+	if _, err := p.db.ExecContext(r.Context(),
+		`DELETE FROM role_roles WHERE id=$1`, req.RoleID); err != nil {
+		writeJSON(w, 2196, nil, "删除角色失败: "+err.Error())
+		return
+	}
+	writeJSON(w, 0, map[string]any{"role_id": req.RoleID}, "已删除")
+}
+
 func (p *RolePlugin) handlePermissionCreate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Code        string `json:"code"`

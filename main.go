@@ -122,6 +122,7 @@ var Routes = map[string]http.HandlerFunc{
 	"GET /api/role/list":               handleRoleList,
 	"GET /api/role/detail":             handleRoleDetail,
 	"PUT /api/role/update":             handleRoleUpdate,
+	"DELETE /api/role/delete":          handleRoleDelete,
 	"POST /api/role/permission-create": handlePermissionCreate,
 	"GET /api/role/permission-list":    handlePermissionList,
 	"PUT /api/role/assign-permissions": handleAssignPermissions,
@@ -155,6 +156,10 @@ func handleRoleDetail(w http.ResponseWriter, r *http.Request) {
 
 func handleRoleUpdate(w http.ResponseWriter, r *http.Request) {
 	Plugin.handleRoleUpdate(w, r)
+}
+
+func handleRoleDelete(w http.ResponseWriter, r *http.Request) {
+	Plugin.handleRoleDelete(w, r)
 }
 
 func handlePermissionCreate(w http.ResponseWriter, r *http.Request) {
