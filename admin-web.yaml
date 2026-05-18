@@ -46,14 +46,65 @@ views:
         type: page
         title: 新建角色
         api: POST /api/role/create
+        fields:
+          - field: name
+            title: 角色名
+            type: string
+            required: true
+            placeholder: 例如 业务管理员
+          - field: parent_id
+            title: 父角色 ID
+            type: string
+            placeholder: 留空则为顶级角色
+          - field: description
+            title: 说明
+            type: text
+          - field: status
+            title: 状态
+            type: enum
+            enum:
+              enabled: 启用
+              disabled: 禁用
+            default: enabled
       - key: edit
         type: row
         title: 编辑
         api: PUT /api/role/update
+        fields:
+          - field: role_id
+            title: 角色 ID
+            type: string
+            hidden: true
+          - field: name
+            title: 角色名
+            type: string
+            required: true
+          - field: parent_id
+            title: 父角色 ID
+            type: string
+          - field: description
+            title: 说明
+            type: text
+          - field: status
+            title: 状态
+            type: enum
+            enum:
+              enabled: 启用
+              disabled: 禁用
       - key: assign_permissions
         type: row
         title: 分配权限
         api: PUT /api/role/assign-permissions
+        fields:
+          - field: role_id
+            title: 角色 ID
+            type: string
+            hidden: true
+          - field: permission_ids
+            title: 权限点 ID 列表
+            type: json
+            required: true
+            placeholder: '["perm_id1", "perm_id2"]'
   - key: permission_list
     type: table
     title: 权限点
@@ -76,6 +127,19 @@ views:
         type: page
         title: 新建权限点
         api: POST /api/role/permission-create
+        fields:
+          - field: code
+            title: 权限码
+            type: string
+            required: true
+            placeholder: 例如 admin.account.manage
+          - field: name
+            title: 名称
+            type: string
+            required: true
+          - field: description
+            title: 说明
+            type: text
 roles:
   - code: admin
     title: 超级管理员
